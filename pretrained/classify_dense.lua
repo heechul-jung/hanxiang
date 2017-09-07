@@ -106,7 +106,7 @@ t.Compose{
 }
 
 local N = 5
-local f_img = io.popen('find -L /home/user/hs_db -iname "*.jpg"')
+local f_img = io.popen('find -L /home/user/hs_db/ -iname "*.jpg"')
 --local f_img = io.popen('find -L /disk1/2200 -iname "*.jpg"')
 print(f_img)
 
@@ -125,14 +125,13 @@ while true do
    -- load the image as a RGB float tensor with values 0..1
    local line = f_img:read('*line')
    if not line then break end
-   filename = '/home/user/jihye/fb.resnet.torch/test/' .. paths.basename(line)
---   filename = '/disk1/2200/' .. paths.basename(line)
+   filename = '/home/user/hs_db/' .. paths.basename(line)
 
    print(filename)
    local img = image.load(filename, 3, 'float')
 
    local result = {}
-   for j=1,2 do
+   for j=1,1000 do
      result[j] = 0
    end
    org_img = img
@@ -183,7 +182,7 @@ while true do
 
 --   print(data_info.classList[idx])
 
-   for i=1,2 do
+   for i=1,1000 do
         if i == 1 then
 	   f2:write(string.gsub(paths.basename(line), ".jpg", ""))
            f2:write(" ")
