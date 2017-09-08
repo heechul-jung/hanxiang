@@ -24,6 +24,7 @@ require 'cudnn'
 require 'cunn'
 require 'image'
 local t = require '../datasets/transforms'
+local matio = require 'matio'
 
 
 if #arg < 2 then
@@ -88,13 +89,14 @@ local meanstd = {
 }
 
 local transform = t.Compose{
-   t.Scale(256),
+   t.Scale(224),
    t.ColorNormalize(meanstd),
-   t.CenterCrop(224),
 }
 
-local features
+table.sort(list_of_filenames)
 
+local features
+local f = io.open("hanxiang_image_list.txt", "w")
 for i=1,number_of_files,batch_size do
     local img_batch = torch.FloatTensor(batch_size, 3, 224, 224) -- batch numbers are the 3 channels and size of transform 
 
@@ -108,6 +110,9 @@ for i=1,number_of_files,batch_size do
             local img = image.load(img_name, 3, 'float')
             img = transform(img)
             img_batch[{j, {}, {}, {} }] = img
+
+            f:write(img_name)
+            f:write('\r\n')
         end
     end
 
@@ -129,6 +134,27 @@ for i=1,number_of_files,batch_size do
        features[{ {i, i-1+image_count}, {}  } ]:copy(output)
 
 end
+f:close()
 
-torch.save('features.t7', {features=features, image_list=list_of_filenames})
+filename = 'hanxiang_features_densenet264_cosine_k48.mat'
+matio.save(filename, features)
+--torch.save('features.t7', {features=features, image_list=list_of_filenames})
+--write('./', features, ',')
 print('saved features to features.t7')
+
+
+---------------------------------------------------------------------
+function write(path, data, sep)
+    sep = sep or ','
+    local file = assert(io.open(path, "w"))
+    for i=1,#data do
+        for j=1,#data[i] do
+            if j>1 then file:write(sep) end
+            file:write(data[i][j])
+        end
+        file:write('\n')
+    end
+    file:close()
+end
+
+---------------------------------------------------------------------

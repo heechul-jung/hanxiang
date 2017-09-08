@@ -3,3 +3,4 @@ libnccl.so
 model_best.t7
 checkpoints
 *.t7
+*.zip

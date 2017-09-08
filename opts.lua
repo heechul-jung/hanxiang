@@ -6,6 +6,8 @@
 --  LICENSE file in the root directory of this source tree. An additional grant
 --  of patent rights can be found in the PATENTS file in the same directory.
 --
+-- Code modified for DenseNet (https://arxiv.org/abs/1608.06993) by Gao Huang.
+-- 
 local M = { }
 
 function M.parse(arg)
@@ -17,7 +19,7 @@ function M.parse(arg)
    cmd:text('Options:')
     ------------ General options --------------------
    cmd:option('-data',       '',         'Path to dataset')
-   cmd:option('-dataset',    'imagenet', 'Options: imagenet | cifar10 | cifar100')
+   cmd:option('-dataset',    'cifar10', 'Options: imagenet | cifar10 | cifar100')
    cmd:option('-manualSeed', 0,          'Manually set RNG seed')
    cmd:option('-nGPU',       1,          'Number of GPUs to use by default')
    cmd:option('-backend',    'cudnn',    'Options: cudnn | cunn')
@@ -39,9 +41,10 @@ function M.parse(arg)
    cmd:option('-LR',              0.1,   'initial learning rate')
    cmd:option('-momentum',        0.9,   'momentum')
    cmd:option('-weightDecay',     1e-4,  'weight decay')
+   cmd:option('-lrShape',         'multistep',    'Learning rate: multistep|cosine')
    ---------- Model options ----------------------------------
    cmd:option('-netType',      'resnet', 'Options: resnet | preresnet')
-   cmd:option('-depth',        34,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
+   cmd:option('-depth',        20,       'ResNet depth: 18 | 34 | 50 | 101 | ...', 'number')
    cmd:option('-shortcutType', '',       'Options: A | B | C')
    cmd:option('-retrain',      'none',   'Path to model to retrain with')
    cmd:option('-optimState',   'none',   'Path to an optimState to reload from')
@@ -50,6 +53,18 @@ function M.parse(arg)
    cmd:option('-optnet',          'false', 'Use optnet to reduce memory usage')
    cmd:option('-resetClassifier', 'false', 'Reset the fully connected layer for fine-tuning')
    cmd:option('-nClasses',         0,      'Number of classes in the dataset')
+   ---------- Model options for DenseNet ----------------------------------
+   cmd:option('-growthRate',        12,    'Number of output channels at each convolutional layer')
+   cmd:option('-bottleneck',       'true', 'Use 1x1 convolution to reduce dimension (DenseNet-B)')
+   cmd:option('-reduction',         0.5,   'Channel compress ratio at transition layer (DenseNet-C)')
+   cmd:option('-dropRate',           0,    'Dropout probability')
+   cmd:option('-optMemory',          2,    'Optimize memory for DenseNet: 0 | 1 | 2 | 3 | 4 | 5', 'number')
+   -- The following hyperparameters are activated when depth is not from {121, 161, 169, 201} (for ImageNet only)
+   cmd:option('-d1',                 0,    'Number of layers in block 1')
+   cmd:option('-d2',                 0,    'Number of layers in block 2')
+   cmd:option('-d3',                 0,    'Number of layers in block 3')
+   cmd:option('-d4',                 0,    'Number of layers in block 4')
+
    cmd:text()
 
    local opt = cmd:parse(arg or {})
@@ -59,6 +74,7 @@ function M.parse(arg)
    opt.shareGradInput = opt.shareGradInput ~= 'false'
    opt.optnet = opt.optnet ~= 'false'
    opt.resetClassifier = opt.resetClassifier ~= 'false'
+   opt.bottleneck = opt.bottleneck ~= 'false'
 
    if not paths.dirp(opt.save) and not paths.mkdir(opt.save) then
       cmd:error('error: unable to create checkpoint directory: ' .. opt.save .. '\n')

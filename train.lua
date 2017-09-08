@@ -8,6 +8,8 @@
 --
 --  The training loop and learning rate schedule
 --
+-- Code modified for DenseNet (https://arxiv.org/abs/1608.06993) by Gao Huang.
+-- 
 
 local optim = require 'optim'
 
@@ -31,7 +33,12 @@ end
 
 function Trainer:train(epoch, dataloader)
    -- Trains the model for a single epoch
-   self.optimState.learningRate = self:learningRate(epoch)
+
+   ------for LR------
+   if self.opt.lrShape == 'multistep' then
+      self.optimState.learningRate = self:learningRate(epoch)
+   end
+   ------for LR------
 
    local timer = torch.Timer()
    local dataTimer = torch.Timer()
@@ -48,6 +55,13 @@ function Trainer:train(epoch, dataloader)
    -- set the batch norm to training mode
    self.model:training()
    for n, sample in dataloader:run() do
+
+      ------for LR------
+      if self.opt.lrShape == 'cosine' then
+         self.optimState.learningRate = self:learningRateCosine(epoch, n, trainSize)
+      end
+      ------for LR------
+
       local dataTime = dataTimer:time().real
 
       -- Copy input and target to the GPU
@@ -69,8 +83,8 @@ function Trainer:train(epoch, dataloader)
       lossSum = lossSum + loss*batchSize
       N = N + batchSize
 
-      print((' | Epoch: [%d][%d/%d]    Time %.3f  Data %.3f  Err %1.4f  top1 %7.3f  top5 %7.3f'):format(
-         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5))
+      print((' | Epoch: [%d][%d/%d]   Time %.3f  Data %.3f  Err %1.3f  top1 %7.2f  top5 %7.2f  lr %.4f'):format(
+         epoch, n, trainSize, timer:time().real, dataTime, loss, top1, top5, self.optimState.learningRate))
 
       -- check that the storage didn't get changed due to an unfortunate getParameters call
       assert(self.params:storage() == self.model:parameters()[1]:storage())
@@ -177,11 +191,20 @@ function Trainer:learningRate(epoch)
    if self.opt.dataset == 'imagenet' then
       decay = math.floor((epoch - 1) / 30)
    elseif self.opt.dataset == 'cifar10' then
-      decay = epoch >= 122 and 2 or epoch >= 81 and 1 or 0
+      decay = epoch >= 0.75*self.opt.nEpochs and 2 or epoch >= 0.5*self.opt.nEpochs and 1 or 0
    elseif self.opt.dataset == 'cifar100' then
-      decay = epoch >= 122 and 2 or epoch >= 81 and 1 or 0
+      decay = epoch >= 0.75*self.opt.nEpochs and 2 or epoch >= 0.5*self.opt.nEpochs and 1 or 0
    end
    return self.opt.LR * math.pow(0.1, decay)
 end
+
+------for LR------
+function Trainer:learningRateCosine(epoch, iter, nBatches)
+   local nEpochs = self.opt.nEpochs
+   local T_total = nEpochs * nBatches
+   local T_cur = ((epoch-1) % nEpochs) * nBatches + iter
+   return 0.5 * self.opt.LR * (1 + torch.cos(math.pi * T_cur / T_total))
+end
+------for LR------
 
 return M.Trainer
